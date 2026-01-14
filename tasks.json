@@ -1,6 +1,11 @@
 {
   "list": [
     {
+      "id": "1768388113551f81e7608647698",
+      "text": "1",
+      "completed": false
+    },
+    {
       "id": "1768388115311b86f4d8eb0b238",
       "text": "3",
       "completed": false
@@ -8,11 +13,6 @@
     {
       "id": "176838811439887295d23275b68",
       "text": "2",
-      "completed": false
-    },
-    {
-      "id": "1768388113551f81e7608647698",
-      "text": "1",
       "completed": false
     }
   ]
