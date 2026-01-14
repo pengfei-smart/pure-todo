@@ -301,19 +301,22 @@
     </div>
   </main>
 
-  <script>
+   <script>
     (function () {
-      // ========= 1. 用你的 Bmob 信息替换这里 =========
-      var BMOB_APP_ID    = "d9e917fc1e66f056638e4df9f1c6f815";      // Application ID
-      var BMOB_REST_KEY  = "4f533f249fa9c7fa287b6bf98350ab89";    // REST API Key
-      var BMOB_CLASS     = "TodoState";
-      var BMOB_OBJECT_ID = "7e6eb2e218";        // 刚才那行记录的 objectId
-      var BMOB_BASE      = "https://api2.bmob.cn";
+      // ========= 1. GitHub 仓库配置（不用写 token） =========
+      var GH_OWNER = "pengfei-smart";       // 你的 GitHub 用户名
+      var GH_REPO  = "pure-todo";           // 仓库名
+      var GH_PATH  = "tasks.json";          // 用来存任务列表的文件名
 
-      var LOCAL_BACKUP_KEY = "pure_todo_bmob_backup_v2";
+      // token 只存在本机 localStorage，不写进代码
+      var TOKEN_STORAGE_KEY = "pure_todo_github_token";
+      var GITHUB_TOKEN = "";
+
+      var LOCAL_BACKUP_KEY = "pure_todo_github_backup_v1";
 
       // ========= 2. 状态 & DOM =========
-      var tasks = []; // {id, text, completed}
+      var tasks = [];  // {id, text, completed}
+      var currentSha = null; // GitHub 上 tasks.json 的 sha，用于更新
 
       var listEl  = document.getElementById("todo-list");
       var emptyEl = document.getElementById("empty-state");
@@ -321,7 +324,7 @@
       var inputEl = document.getElementById("new-task-input");
       var statsEl = document.getElementById("task-stats");
 
-      // ========= 3. 本地备份 =========
+      // ========= 3. 工具：本地备份 =========
       function loadFromLocalBackup() {
         try {
           var raw = localStorage.getItem(LOCAL_BACKUP_KEY);
@@ -342,41 +345,145 @@
         } catch (e) {}
       }
 
-      // ========= 4. Bmob REST =========
-      function bmobHeaders() {
+      // ========= 4. 工具：处理 GitHub Token =========
+      function ensureToken() {
+        if (GITHUB_TOKEN) return true;
+        try {
+          var stored = localStorage.getItem(TOKEN_STORAGE_KEY);
+          if (stored && stored.trim()) {
+            GITHUB_TOKEN = stored.trim();
+            return true;
+          }
+        } catch (e) {}
+
+        // 第一次没有 token，就弹一个输入框让你粘贴
+        var t = window.prompt(
+          "第一次使用云同步，请粘贴你在 GitHub 创建的 Personal Access Token：\n\n" +
+          "说明：\n" +
+          "1. 这个 Token 只会保存在本机浏览器的 localStorage 中，不会上传到任何服务器；\n" +
+          "2. 如果不想用云同步，可以直接点取消，只使用本地存储。"
+        );
+        if (t && t.trim()) {
+          GITHUB_TOKEN = t.trim();
+          try {
+            localStorage.setItem(TOKEN_STORAGE_KEY, GITHUB_TOKEN);
+          } catch (e) {}
+          return true;
+        } else {
+          // 用户没提供 token，就只用本地模式
+          console.warn("未配置 GitHub Token，将只使用本地存储。");
+          return false;
+        }
+      }
+
+      function githubHeaders() {
+        if (!ensureToken()) {
+          // 没有 token 的情况，只返回 Accept 头，GitHub 会匿名限流，只能读公共内容，写会失败
+          return {
+            "Accept": "application/vnd.github.v3+json"
+          };
+        }
         return {
           "Content-Type": "application/json",
-          "X-Bmob-Application-Id": BMOB_APP_ID,
-          "X-Bmob-REST-API-Key":   BMOB_REST_KEY
+          "Accept": "application/vnd.github.v3+json",
+          "Authorization": "Bearer " + GITHUB_TOKEN
         };
       }
 
-      function fetchJson(url, options) {
-        options = options || {};
-        options.headers = Object.assign({}, bmobHeaders(), options.headers || {});
-        return fetch(url, options).then(function (res) {
-          if (!res.ok) throw new Error("HTTP " + res.status);
-          return res.json();
-        });
+      function encodeBase64(str) {
+        // 兼容中文
+        return btoa(unescape(encodeURIComponent(str)));
       }
 
-      function loadFromCloud() {
-        var url = BMOB_BASE + "/1/classes/" + BMOB_CLASS + "/" + BMOB_OBJECT_ID;
-        return fetchJson(url).then(function (data) {
-          if (data && data.tasks && Array.isArray(data.tasks.list)) {
-            tasks = data.tasks.list;
-          } else {
-            tasks = [];
-          }
-        });
+      function decodeBase64(str) {
+        return decodeURIComponent(escape(atob(str)));
       }
 
-      function saveToCloud() {
-        var url = BMOB_BASE + "/1/classes/" + BMOB_CLASS + "/" + BMOB_OBJECT_ID;
-        var body = JSON.stringify({ tasks: { list: tasks } });
-        return fetchJson(url, { method: "PUT", body: body })
+      // ========= 5. GitHub 读写 =========
+
+      // 从 GitHub 读取 tasks.json
+      function loadFromGitHub() {
+        var url = "https://api.github.com/repos/" + GH_OWNER + "/" + GH_REPO + "/contents/" + GH_PATH;
+
+        if (!ensureToken()) {
+          // 没设置 token，直接跳过云端加载
+          return Promise.reject(new Error("NO_TOKEN"));
+        }
+
+        return fetch(url, { headers: githubHeaders() })
+          .then(function (res) {
+            if (res.status === 404) {
+              // 文件不存在，当作空列表
+              currentSha = null;
+              tasks = [];
+              return null;
+            }
+            if (!res.ok) {
+              return res.json().catch(function () { return {}; }).then(function (body) {
+                var err = new Error("HTTP " + res.status);
+                err.status = res.status;
+                err.body = body;
+                throw err;
+              });
+            }
+            return res.json();
+          })
+          .then(function (data) {
+            if (!data) return;
+            currentSha = data.sha;
+            if (!data.content) return;
+            var decoded = decodeBase64(data.content);
+            var parsed = JSON.parse(decoded);
+            if (parsed && Array.isArray(parsed.list)) {
+              tasks = parsed.list;
+            } else {
+              tasks = [];
+            }
+          });
+      }
+
+      // 把当前 tasks 写回 GitHub
+      function saveToGitHub() {
+        if (!ensureToken()) {
+          console.warn("未配置 GitHub Token，只保存到本地。");
+          return;
+        }
+
+        var url = "https://api.github.com/repos/" + GH_OWNER + "/" + GH_REPO + "/contents/" + GH_PATH;
+        var text = JSON.stringify({ list: tasks }, null, 2);
+        var content = encodeBase64(text);
+
+        var body = {
+          message: "Update tasks via Pure To Do - " + new Date().toISOString(),
+          content: content
+        };
+        if (currentSha) {
+          body.sha = currentSha;
+        }
+
+        return fetch(url, {
+          method: "PUT",
+          headers: githubHeaders(),
+          body: JSON.stringify(body)
+        })
+          .then(function (res) {
+            if (!res.ok) {
+              return res.json().catch(function () { return {}; }).then(function (body) {
+                var err = new Error("HTTP " + res.status);
+                err.status = res.status;
+                err.body = body;
+                throw err;
+              });
+            }
+            return res.json();
+          })
+          .then(function (data) {
+            if (data && data.content && data.content.sha) {
+              currentSha = data.content.sha;
+            }
+          })
           .catch(function (e) {
-            console.warn("保存到云端失败，仅本地保存：", e);
+            console.warn("保存到 GitHub 失败，仅本地保存：", e);
           });
       }
 
@@ -384,12 +491,13 @@
       function saveAll() {
         saveToLocalBackup();
         if (saveTimer) clearTimeout(saveTimer);
+        // 稍微防抖一下，避免频繁写 GitHub
         saveTimer = setTimeout(function () {
-          saveToCloud();
-        }, 600);
+          saveToGitHub();
+        }, 800);
       }
 
-      // ========= 5. 渲染 =========
+      // ========= 6. 渲染 =========
       function render() {
         listEl.innerHTML = "";
         if (tasks.length === 0) {
@@ -400,7 +508,7 @@
         emptyEl.style.display = "none";
 
         for (var i = 0; i < tasks.length; i++) {
-          (function(task) {
+          (function (task) {
             var li = document.createElement("li");
             li.className = "item" + (task.completed ? " completed" : "");
             li.draggable = true;
@@ -465,7 +573,7 @@
         statsEl.textContent = "共 " + total + " 条 · 未完成 " + (total - done) + " 条";
       }
 
-      // ========= 6. 操作 =========
+      // ========= 7. 操作 =========
       function add(text) {
         var t = text.trim();
         if (!t) return;
@@ -516,7 +624,7 @@
         render();
       }
 
-      // ========= 7. 事件 & 初始化 =========
+      // ========= 8. 事件 & 初始化 =========
       formEl.addEventListener("submit", function (e) {
         e.preventDefault();
         add(inputEl.value);
@@ -525,10 +633,19 @@
       });
 
       (function init() {
-        loadFromCloud()
+        loadFromGitHub()
+          .then(function () {
+            // 成功从云端加载后，同步一份到本地备份
+            saveToLocalBackup();
+          })
           .catch(function (e) {
-            console.warn("从云端加载失败，使用本地备份：", e);
-            loadFromLocalBackup();
+            if (e && e.message === "NO_TOKEN") {
+              // 用户没填 token，直接用本地备份
+              loadFromLocalBackup();
+            } else {
+              console.warn("从 GitHub 加载失败，使用本地备份：", e);
+              loadFromLocalBackup();
+            }
           })
           .finally(function () {
             render();
@@ -539,3 +656,4 @@
   </script>
 </body>
 </html>
+
