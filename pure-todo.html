@@ -304,13 +304,13 @@
   <script>
     (function () {
       // ========= 1. 用你的 Bmob 信息替换这里 =========
-      var BMOB_APP_ID    = "d9e917fc1e66f056638e4df9f1c6f815";       // Application ID
-      var BMOB_REST_KEY  = "4f533f249fa9c7fa287b6bf98350ab89";     // REST API Key
+      var BMOB_APP_ID    = "d9e917fc1e66f056638e4df9f1c6f815";      // Application ID
+      var BMOB_REST_KEY  = "4f533f249fa9c7fa287b6bf98350ab89";    // REST API Key
       var BMOB_CLASS     = "TodoState";
-      var BMOB_OBJECT_ID = "732cdaaa2f";         // TodoState 表那条记录的 objectId
-      var BMOB_BASE      = "https://api2.bmob.cn";   // Bmob REST 固定前缀
+      var BMOB_OBJECT_ID = "7e6eb2e218";        // 刚才那行记录的 objectId
+      var BMOB_BASE      = "https://api2.bmob.cn";
 
-      var LOCAL_BACKUP_KEY = "pure_todo_bmob_backup_v1";
+      var LOCAL_BACKUP_KEY = "pure_todo_bmob_backup_v2";
 
       // ========= 2. 状态 & DOM =========
       var tasks = []; // {id, text, completed}
@@ -363,8 +363,8 @@
       function loadFromCloud() {
         var url = BMOB_BASE + "/1/classes/" + BMOB_CLASS + "/" + BMOB_OBJECT_ID;
         return fetchJson(url).then(function (data) {
-          if (data && Array.isArray(data.tasks)) {
-            tasks = data.tasks;
+          if (data && data.tasks && Array.isArray(data.tasks.list)) {
+            tasks = data.tasks.list;
           } else {
             tasks = [];
           }
@@ -373,7 +373,7 @@
 
       function saveToCloud() {
         var url = BMOB_BASE + "/1/classes/" + BMOB_CLASS + "/" + BMOB_OBJECT_ID;
-        var body = JSON.stringify({ tasks: tasks });
+        var body = JSON.stringify({ tasks: { list: tasks } });
         return fetchJson(url, { method: "PUT", body: body })
           .catch(function (e) {
             console.warn("保存到云端失败，仅本地保存：", e);
@@ -386,7 +386,7 @@
         if (saveTimer) clearTimeout(saveTimer);
         saveTimer = setTimeout(function () {
           saveToCloud();
-        }, 600); // 600ms 内修改合并一次请求
+        }, 600);
       }
 
       // ========= 5. 渲染 =========
