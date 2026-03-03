@@ -50,7 +50,7 @@
       padding: 24px 16px 32px;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 8px;
     }
     @media (min-width: 840px) {
       .app {
@@ -58,6 +58,7 @@
         align-items: flex-start;
       }
     }
+
     .card {
       background: rgba(255, 255, 255, 0.9);
       backdrop-filter: blur(12px);
@@ -74,15 +75,22 @@
         box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
       }
     }
-    .card-main {
-      flex: 2;
-    }
+
+    .card-main,
     .card-log {
       flex: 1;
     }
     @media (min-width: 840px) {
       .card-main {
-        margin-right: 8px;
+        margin-right: 6px;
+      }
+      .card-log {
+        margin-left: 6px;
+      }
+    }
+    @media (max-width: 839px) {
+      .card-log {
+        margin-top: 6px;
       }
     }
 
@@ -368,20 +376,16 @@
     .log-text {
       font-size: 13px;
       line-height: 1.4;
-      word-break: break-word;
-      white-space: pre-wrap;
+      color: var(--completed);
+      text-decoration: line-through;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .log-time {
       font-size: 11px;
       color: var(--fg-muted);
       margin-top: 2px;
-    }
-
-    /* 响应式：小屏上下排，大屏左右排 */
-    @media (max-width: 839px) {
-      .card-log {
-        margin-top: 4px;
-      }
     }
 
     /* 备注大弹窗 */
@@ -470,13 +474,13 @@
       <header class="header">
         <div>
           <div class="title">Pure To Do</div>
-          <div class="subtitle">只记录要做的事 · 原地多行编辑 · 时间 / 备注 / 拖拽</div>
+          <div class="subtitle">左：未划线任务 · 原地多行编辑 / 备注 / 拖拽</div>
         </div>
       </header>
 
       <ul id="todo-list" class="list"></ul>
       <div id="empty-state" class="empty">
-        还没有任务。写下今天最想完成的第一件事。
+        目前没有未划线任务。
       </div>
 
       <form id="add-form" class="input-row" autocomplete="off">
@@ -499,14 +503,14 @@
       <header class="header">
         <div>
           <div class="title" style="font-size:18px;">划线记录</div>
-          <div class="subtitle">按划线时间排序 · 记录内容与时间</div>
+          <div class="subtitle">右：已划线任务 · 按划线时间排序</div>
         </div>
       </header>
       <ul id="completed-log" class="log-list"></ul>
     </section>
 
     <div class="meta">
-      <span>GitHub 云端同步 · 本地备份 · 左侧管理任务 · 右侧查看划线历史</span>
+      <span>GitHub 云端同步 · 本地备份 · 左未划线 / 右划线记录 · 创建 / 修改 / 划线时间 · 备注弹窗</span>
     </div>
   </main>
 
@@ -529,21 +533,20 @@
 
   <script>
     (function () {
-      // ===== 1. GitHub 仓库配置（如果你改了用户名/仓库名，这里要对应改） =====
+      // ===== 1. GitHub 仓库配置（改成你自己的用户名/仓库名） =====
       var GH_OWNER = "pengfei-smart";
       var GH_REPO  = "pure-todo";
       var GH_PATH  = "tasks.json";
 
-      // Token 只保存在本机 localStorage，不写进仓库
       var TOKEN_STORAGE_KEY = "pure_todo_github_token";
       var GITHUB_TOKEN = "";
 
-      var LOCAL_BACKUP_KEY = "pure_todo_github_backup_v5";
+      var LOCAL_BACKUP_KEY = "pure_todo_github_backup_v6";
 
       // 任务结构：
       // { id, text, completed, createdAt, updatedAt, note, completedAt }
       var tasks = [];
-      var currentSha = null; // GitHub 上 tasks.json 的 sha
+      var currentSha = null;
 
       var listEl  = document.getElementById("todo-list");
       var emptyEl = document.getElementById("empty-state");
@@ -552,13 +555,13 @@
       var statsEl = document.getElementById("task-stats");
       var completedLogEl = document.getElementById("completed-log");
 
-      // 备注弹窗相关
-      var noteModalBackdrop = document.getElementById("note-modal-backdrop");
-      var noteModalTextarea = document.getElementById("note-modal-textarea");
-      var noteModalTime     = document.getElementById("note-modal-time");
-      var noteModalSaveBtn  = document.getElementById("note-modal-save");
+      // 备注弹窗
+      var noteModalBackdrop  = document.getElementById("note-modal-backdrop");
+      var noteModalTextarea  = document.getElementById("note-modal-textarea");
+      var noteModalTime      = document.getElementById("note-modal-time");
+      var noteModalSaveBtn   = document.getElementById("note-modal-save");
       var noteModalCancelBtn = document.getElementById("note-modal-cancel");
-      var currentNoteTaskId = null;
+      var currentNoteTaskId  = null;
 
       // ===== 2. 补全老数据的字段 =====
       function normalizeTasks() {
@@ -582,7 +585,6 @@
             t.note = "";
           }
           if (typeof t.completedAt !== "number" && t.completed) {
-            // 老数据里已完成但没有 completedAt，用 updatedAt 或 now 补
             t.completedAt = t.updatedAt || now;
           }
           if (!t.completed) {
@@ -788,20 +790,30 @@
         listEl.innerHTML = "";
         completedLogEl.innerHTML = "";
 
-        if (tasks.length === 0) {
+        var active = [];
+        var completedForLog = [];
+
+        for (var i = 0; i < tasks.length; i++) {
+          var t = tasks[i];
+          if (!t) continue;
+          if (t.completed) {
+            completedForLog.push(t);
+          } else {
+            active.push(t);
+          }
+        }
+
+        if (active.length === 0) {
           emptyEl.style.display = "block";
-          statsEl.textContent = "";
         } else {
           emptyEl.style.display = "none";
         }
 
-        var completedForLog = [];
-
-        for (var i = 0; i < tasks.length; i++) {
+        // 左侧：只渲染未完成任务
+        for (var ai = 0; ai < active.length; ai++) {
           (function (task) {
-            // 左侧主列表
             var li = document.createElement("li");
-            li.className = "item" + (task.completed ? " completed" : "");
+            li.className = "item";
             li.draggable = true;
             li.dataset.id = task.id;
 
@@ -833,7 +845,6 @@
               var newText = text.innerText.replace(/\r\n/g, "\n").trim();
 
               if (!newText) {
-                // 不允许改成空，恢复原文
                 text.textContent = original;
                 return;
               }
@@ -847,19 +858,16 @@
 
             text.addEventListener("keydown", function (e) {
               if (e.key === "Escape") {
-                // Esc 取消本次修改
                 e.preventDefault();
                 var original = text._originalText != null ? text._originalText : (task.text || "");
                 text.textContent = original;
                 text.blur();
               }
-              // Enter 保留为换行，不拦截
             });
 
             var actions = document.createElement("div");
             actions.className = "item-actions";
 
-            // 复制按钮
             var copyBtn = document.createElement("button");
             copyBtn.className = "icon-btn";
             copyBtn.textContent = "复制";
@@ -869,7 +877,6 @@
               copyTask(task);
             });
 
-            // 备注按钮
             var noteBtn = document.createElement("button");
             noteBtn.className = "icon-btn icon-note" + (task.note ? " has-note" : "");
             noteBtn.textContent = "注";
@@ -885,7 +892,7 @@
             var del = document.createElement("button");
             del.className = "delete-btn";
             del.textContent = "✕";
-            del.title = "删除这条任务";
+            del.title = "彻底删除这条任务";
             del.addEventListener("click", function (e) {
               e.stopPropagation();
               var ok = confirm("确定要真正删除这条任务吗？（不会出现在划线记录中）\n\n" + task.text);
@@ -901,7 +908,6 @@
             mainRow.appendChild(text);
             mainRow.appendChild(actions);
 
-            // 元信息：时间 + 备注缩略
             var metaRow = document.createElement("div");
             metaRow.className = "item-meta";
 
@@ -926,8 +932,6 @@
             } else {
               metaNote.textContent = "";
             }
-
-            // 点击备注缩略也可以打开大备注框
             metaNote.addEventListener("click", function (e) {
               e.stopPropagation();
               openNoteModal(task.id);
@@ -939,7 +943,6 @@
             li.appendChild(mainRow);
             li.appendChild(metaRow);
 
-            // 拖拽排序
             li.addEventListener("dragstart", function (e) {
               e.dataTransfer.effectAllowed = "move";
               e.dataTransfer.setData("text/plain", task.id);
@@ -959,46 +962,50 @@
             });
 
             listEl.appendChild(li);
-
-            // 右侧划线记录收集
-            if (task.completed && typeof task.completedAt === "number") {
-              completedForLog.push(task);
-            }
-          })(tasks[i]);
+          })(active[ai]);
         }
 
-        // 右侧划线记录：按划线时间排序（最新在上）
+        // 右侧：划线记录，按 completedAt 排序（最新在上）
         completedForLog.sort(function(a, b) {
           return (b.completedAt || 0) - (a.completedAt || 0);
         });
 
-        for (var j = 0; j < completedForLog.length; j++) {
-          var t = completedForLog[j];
-          var logLi = document.createElement("li");
-          logLi.className = "log-item";
+        if (completedForLog.length === 0) {
+          var emptyLog = document.createElement("li");
+          emptyLog.className = "log-item";
+          var t = document.createElement("div");
+          t.className = "log-time";
+          t.textContent = "目前还没有划线记录。";
+          emptyLog.appendChild(t);
+          completedLogEl.appendChild(emptyLog);
+        } else {
+          for (var ci = 0; ci < completedForLog.length; ci++) {
+            var ct = completedForLog[ci];
+            var logLi = document.createElement("li");
+            logLi.className = "log-item";
 
-          var logText = document.createElement("div");
-          logText.className = "log-text";
-          logText.textContent = t.text;
+            var logText = document.createElement("div");
+            logText.className = "log-text";
+            logText.textContent = ct.text;
 
-          var logTime = document.createElement("div");
-          logTime.className = "log-time";
-          logTime.textContent = "划线时间：" + formatTime(t.completedAt);
+            var logTime = document.createElement("div");
+            logTime.className = "log-time";
+            logTime.textContent = "划线时间：" + formatTime(ct.completedAt);
 
-          logLi.appendChild(logText);
-          logLi.appendChild(logTime);
-          completedLogEl.appendChild(logLi);
+            logLi.appendChild(logText);
+            logLi.appendChild(logTime);
+            completedLogEl.appendChild(logLi);
+          }
         }
 
         var total = tasks.length;
-        var done = 0;
-        for (var k = 0; k < tasks.length; k++) {
-          if (tasks[k].completed) done++;
-        }
+        var done  = completedForLog.length;
+        var activeCount = active.length;
         if (total === 0) {
           statsEl.textContent = "";
         } else {
-          statsEl.textContent = "共 " + total + " 条 · 已划线 " + done + " 条 · 未划线 " + (total - done) + " 条";
+          statsEl.textContent =
+            "共 " + total + " 条 · 已划线 " + done + " 条 · 未划线 " + activeCount + " 条";
         }
       }
 
@@ -1033,16 +1040,14 @@
         var t = tasks[i];
         var now = Date.now();
         if (!t.completed) {
-          // 从未划线 → 划线
           t.completed = true;
           t.completedAt = now;
         } else {
-          // 从划线 → 取消划线
           t.completed = false;
           t.completedAt = null;
         }
         t.updatedAt = now;
-        // 不改变 tasks 数组顺序，这样“自然回归原来位置”
+        // 不改变数组顺序，这样取消划线时自然回到原来的位置
         saveAll();
         render();
       }
@@ -1150,7 +1155,6 @@
       });
       noteModalBackdrop.addEventListener("click", function (e) {
         if (e.target === noteModalBackdrop) {
-          // 点击遮罩层空白处相当于取消
           closeNoteModal(false);
         }
       });
