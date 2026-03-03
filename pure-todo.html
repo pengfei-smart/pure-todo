@@ -43,19 +43,24 @@
       align-items: stretch;
       justify-content: center;
     }
+
+    /* 整体容器：大屏左右两张卡片居中；小屏上下堆叠 */
     .app {
       width: 100%;
-      max-width: 1200px;
+      max-width: 1100px; /* 整体宽度，类似你截图红框的宽度 */
       margin: 0 auto;
       padding: 24px 16px 32px;
       display: flex;
       flex-direction: column;
       gap: 8px;
+      justify-content: center;
+      align-items: center;
     }
     @media (min-width: 840px) {
       .app {
         flex-direction: row;
         align-items: flex-start;
+        justify-content: center; /* 左右两张卡片整体居中 */
       }
     }
 
@@ -76,9 +81,12 @@
       }
     }
 
+    /* 左右两张卡片宽度：大屏固定大致 480px，小屏铺满 */
     .card-main,
     .card-log {
-      flex: 1;
+      width: 100%;
+      max-width: 520px; /* 单卡片最大宽度 */
+      flex: 0 0 auto;
     }
     @media (min-width: 840px) {
       .card-main {
@@ -89,6 +97,10 @@
       }
     }
     @media (max-width: 839px) {
+      .card-main,
+      .card-log {
+        max-width: none;
+      }
       .card-log {
         margin-top: 8px;
       }
@@ -514,7 +526,7 @@
       <header class="header">
         <div>
           <div class="title" style="font-size:18px;">划线记录</div>
-          <div class="subtitle">右：已划线任务 · 按划线时间排序</div>
+          <div class="subtitle">右：已划线任务 · 按划线时间排序 · 可撤销</div>
         </div>
         <div class="log-header-actions">
           <button type="button" class="icon-btn" id="toggle-log-btn" title="折叠 / 展开划线记录">
@@ -896,7 +908,7 @@
             });
 
             var noteBtn = document.createElement("button");
-            noteBtn.className = "icon-btn icon-note" + (task.note ? " has-note" : "");
+            noteBtn.className = "icon-btn icon-note" + (task.note ? "has-note" : "");
             noteBtn.textContent = "注";
             noteBtn.title = task.note ? "查看 / 修改备注" : "添加备注";
             noteBtn.addEventListener("click", function (e) {
@@ -983,7 +995,7 @@
           })(active[ai]);
         }
 
-        // 右侧：划线记录，按 completedAt 排序（最新在上）
+        // 右侧：划线记录
         completedForLog.sort(function(a, b) {
           return (b.completedAt || 0) - (a.completedAt || 0);
         }).reverse();
@@ -998,44 +1010,37 @@
           completedLogEl.appendChild(emptyLog);
         } else {
           for (var ci = 0; ci < completedForLog.length; ci++) {
-            var ct = completedForLog[ci];
-            var logLi = document.createElement("li");
-            logLi.className = "log-item";
+            (function(ct){
+              var logLi = document.createElement("li");
+              logLi.className = "log-item";
 
-            var logMain = document.createElement("div");
-            logMain.className = "log-main";
+              var logMain = document.createElement("div");
+              logMain.className = "log-main";
 
-            var logText = document.createElement("div");
-            logText.className = "log-text";
-            logText.textContent = ct.text;
+              var logText = document.createElement("div");
+              logText.className = "log-text";
+              logText.textContent = ct.text;
 
-            var undoBtn = document.createElement("button");
-            undoBtn.className = "icon-btn";
-            undoBtn.textContent = "撤销";
-            undoBtn.title = "取消划线，恢复到左侧";
-            undoBtn.addEventListener("click", function (e) {
-              e.stopPropagation();
-              // 这里用闭包外的 ct 需要一个独立函数包裹
-            });
-
-            // 为避免闭包问题，用 IIFE 创建独立作用域
-            (function(taskId){
-              undoBtn.onclick = function(e) {
+              var undoBtn = document.createElement("button");
+              undoBtn.className = "icon-btn";
+              undoBtn.textContent = "撤销";
+              undoBtn.title = "取消划线，恢复到左侧";
+              undoBtn.addEventListener("click", function (e) {
                 e.stopPropagation();
-                toggle(taskId);
-              };
-            })(ct.id);
+                toggle(ct.id);
+              });
 
-            logMain.appendChild(logText);
-            logMain.appendChild(undoBtn);
+              logMain.appendChild(logText);
+              logMain.appendChild(undoBtn);
 
-            var logTime = document.createElement("div");
-            logTime.className = "log-time";
-            logTime.textContent = "划线时间：" + formatTime(ct.completedAt);
+              var logTime = document.createElement("div");
+              logTime.className = "log-time";
+              logTime.textContent = "划线时间：" + formatTime(ct.completedAt);
 
-            logLi.appendChild(logMain);
-            logLi.appendChild(logTime);
-            completedLogEl.appendChild(logLi);
+              logLi.appendChild(logMain);
+              logLi.appendChild(logTime);
+              completedLogEl.appendChild(logLi);
+            })(completedForLog[ci]);
           }
         }
 
