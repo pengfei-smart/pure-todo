@@ -157,16 +157,24 @@
       background: #ffffff;
       transform: scale(0.9);
     }
+
     .text {
       flex: 1;
       font-size: 15px;
       line-height: 1.4;
-      cursor: pointer; /* 点击修改 */
+      cursor: text;              /* 鼠标变成文本光标，表示可编辑 */
       word-break: break-word;
+      white-space: pre-wrap;     /* 保留换行 */
     }
     .item.completed .text {
       color: var(--completed);
       text-decoration: line-through;
+    }
+    .text.editing {
+      outline: 1px solid var(--accent);
+      border-radius: 4px;
+      padding: 2px 3px;
+      background: rgba(0, 122, 255, 0.04);
     }
 
     .item-actions {
@@ -343,7 +351,7 @@
       <header class="header">
         <div>
           <div class="title">Pure To Do</div>
-          <div class="subtitle">只记录要做的事 · 可修改复制 · 有时间和备注</div>
+          <div class="subtitle">只记录要做的事 · 可原地修改 / 复制 · 有时间和备注</div>
         </div>
       </header>
 
@@ -368,13 +376,13 @@
     </section>
 
     <div class="meta">
-      <span>GitHub 云端同步 · 修改 / 复制 / 时间 / 备注 · 纯前端</span>
+      <span>GitHub 云端同步 · 原地多行编辑 · 创建 / 修改时间 · 备注缩略</span>
     </div>
   </main>
 
   <script>
     (function () {
-      // ===== 1. GitHub 仓库配置（已经写成你的仓库） =====
+      // ===== 1. GitHub 仓库配置（如果你改了用户名/仓库名，这里要对应改） =====
       var GH_OWNER = "pengfei-smart";
       var GH_REPO  = "pure-todo";
       var GH_PATH  = "tasks.json";
@@ -383,7 +391,7 @@
       var TOKEN_STORAGE_KEY = "pure_todo_github_token";
       var GITHUB_TOKEN = "";
 
-      var LOCAL_BACKUP_KEY = "pure_todo_github_backup_v2";
+      var LOCAL_BACKUP_KEY = "pure_todo_github_backup_v3";
 
       // 任务结构：
       // { id, text, completed, createdAt, updatedAt, note }
@@ -642,9 +650,9 @@
             var text = document.createElement("div");
             text.className = "text";
             text.textContent = task.text;
-            text.title = "点击修改内容";
+            text.title = "点击修改内容（可多行编辑）";
             text.addEventListener("click", function () {
-              editTaskText(task.id);
+              editTaskText(task.id, text);
             });
 
             var actions = document.createElement("div");
@@ -788,19 +796,71 @@
         render();
       }
 
-      function editTaskText(id) {
+      // 原地多行编辑任务内容
+      function editTaskText(id, textEl) {
         var i = findTaskIndex(id);
         if (i === -1) return;
-        var current = tasks[i].text || "";
-        var next = window.prompt("修改任务内容：", current);
-        if (next === null) return;
-        next = next.trim();
-        if (!next) return;
-        if (next === current) return;
-        tasks[i].text = next;
-        tasks[i].updatedAt = Date.now();
-        saveAll();
-        render();
+        var task = tasks[i];
+
+        var original = task.text || "";
+
+        // 开启原地编辑
+        textEl.contentEditable = "true";
+        textEl.classList.add("editing");
+
+        // 光标定位到末尾
+        var range = document.createRange();
+        range.selectNodeContents(textEl);
+        range.collapse(false);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        textEl.focus();
+
+        function finish(save) {
+          // 退出编辑模式
+          textEl.contentEditable = "false";
+          textEl.classList.remove("editing");
+          textEl.removeEventListener("blur", onBlur);
+          textEl.removeEventListener("keydown", onKey);
+
+          if (!save) {
+            // 放弃修改，恢复原内容
+            textEl.textContent = original;
+            return;
+          }
+
+          // 获取编辑后的文本（保留换行）
+          var newText = textEl.innerText.replace(/\r\n/g, "\n").trim();
+          if (!newText) {
+            // 不允许改成空，恢复原文
+            textEl.textContent = original;
+            return;
+          }
+          if (newText === original) return;
+
+          task.text = newText;
+          task.updatedAt = Date.now();
+          saveAll();
+          render();
+        }
+
+        function onBlur() {
+          // 光标离开时保存
+          finish(true);
+        }
+
+        function onKey(e) {
+          if (e.key === "Escape") {
+            // Esc 取消修改
+            e.preventDefault();
+            finish(false);
+          }
+          // Enter 默认就是换行，不拦截
+        }
+
+        textEl.addEventListener("blur", onBlur);
+        textEl.addEventListener("keydown", onKey);
       }
 
       function editTaskNote(id) {
