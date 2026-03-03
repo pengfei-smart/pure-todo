@@ -351,7 +351,7 @@
       <header class="header">
         <div>
           <div class="title">Pure To Do</div>
-          <div class="subtitle">只记录要做的事 · 可原地修改 / 复制 · 有时间和备注</div>
+          <div class="subtitle">只记录要做的事 · 原地多行编辑 · 时间 / 备注 / 拖拽</div>
         </div>
       </header>
 
@@ -376,7 +376,7 @@
     </section>
 
     <div class="meta">
-      <span>GitHub 云端同步 · 原地多行编辑 · 创建 / 修改时间 · 备注缩略</span>
+      <span>GitHub 云端同步 · 本地备份 · 原地多行编辑 · 创建 / 修改时间 · 备注缩略</span>
     </div>
   </main>
 
@@ -391,7 +391,7 @@
       var TOKEN_STORAGE_KEY = "pure_todo_github_token";
       var GITHUB_TOKEN = "";
 
-      var LOCAL_BACKUP_KEY = "pure_todo_github_backup_v3";
+      var LOCAL_BACKUP_KEY = "pure_todo_github_backup_v4";
 
       // 任务结构：
       // { id, text, completed, createdAt, updatedAt, note }
@@ -650,9 +650,42 @@
             var text = document.createElement("div");
             text.className = "text";
             text.textContent = task.text;
-            text.title = "点击修改内容（可多行编辑）";
-            text.addEventListener("click", function () {
-              editTaskText(task.id, text);
+            text.title = "点击直接编辑内容（可多行）";
+            text.contentEditable = "true";
+            text.spellcheck = false;
+
+            text.addEventListener("focus", function () {
+              text.classList.add("editing");
+              text._originalText = task.text || "";
+            });
+
+            text.addEventListener("blur", function () {
+              text.classList.remove("editing");
+              var original = text._originalText != null ? text._originalText : (task.text || "");
+              var newText = text.innerText.replace(/\r\n/g, "\n").trim();
+
+              if (!newText) {
+                // 不允许改成空，恢复原文
+                text.textContent = original;
+                return;
+              }
+              if (newText === original) return;
+
+              task.text = newText;
+              task.updatedAt = Date.now();
+              saveAll();
+              render();
+            });
+
+            text.addEventListener("keydown", function (e) {
+              if (e.key === "Escape") {
+                // Esc 取消本次修改
+                e.preventDefault();
+                var original = text._originalText != null ? text._originalText : (task.text || "");
+                text.textContent = original;
+                text.blur();
+              }
+              // Enter 保留为换行，不拦截
             });
 
             var actions = document.createElement("div");
@@ -794,73 +827,6 @@
         tasks[i].updatedAt = Date.now();
         saveAll();
         render();
-      }
-
-      // 原地多行编辑任务内容
-      function editTaskText(id, textEl) {
-        var i = findTaskIndex(id);
-        if (i === -1) return;
-        var task = tasks[i];
-
-        var original = task.text || "";
-
-        // 开启原地编辑
-        textEl.contentEditable = "true";
-        textEl.classList.add("editing");
-
-        // 光标定位到末尾
-        var range = document.createRange();
-        range.selectNodeContents(textEl);
-        range.collapse(false);
-        var sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
-        textEl.focus();
-
-        function finish(save) {
-          // 退出编辑模式
-          textEl.contentEditable = "false";
-          textEl.classList.remove("editing");
-          textEl.removeEventListener("blur", onBlur);
-          textEl.removeEventListener("keydown", onKey);
-
-          if (!save) {
-            // 放弃修改，恢复原内容
-            textEl.textContent = original;
-            return;
-          }
-
-          // 获取编辑后的文本（保留换行）
-          var newText = textEl.innerText.replace(/\r\n/g, "\n").trim();
-          if (!newText) {
-            // 不允许改成空，恢复原文
-            textEl.textContent = original;
-            return;
-          }
-          if (newText === original) return;
-
-          task.text = newText;
-          task.updatedAt = Date.now();
-          saveAll();
-          render();
-        }
-
-        function onBlur() {
-          // 光标离开时保存
-          finish(true);
-        }
-
-        function onKey(e) {
-          if (e.key === "Escape") {
-            // Esc 取消修改
-            e.preventDefault();
-            finish(false);
-          }
-          // Enter 默认就是换行，不拦截
-        }
-
-        textEl.addEventListener("blur", onBlur);
-        textEl.addEventListener("keydown", onKey);
       }
 
       function editTaskNote(id) {
