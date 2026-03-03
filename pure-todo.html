@@ -47,7 +47,7 @@
     /* 整体容器：大屏左右两张卡片居中；小屏上下堆叠 */
     .app {
       width: 100%;
-      max-width: 1100px; /* 整体宽度，类似你截图红框的宽度 */
+      max-width: 1100px; /* 整体宽度，可按需要微调 */
       margin: 0 auto;
       padding: 24px 16px 32px;
       display: flex;
@@ -85,7 +85,7 @@
     .card-main,
     .card-log {
       width: 100%;
-      max-width: 520px; /* 单卡片最大宽度 */
+      max-width: 520px; /* 单卡片最大宽度，可按需要调整 */
       flex: 0 0 auto;
     }
     @media (min-width: 840px) {
@@ -201,7 +201,7 @@
       flex: 1;
       font-size: 15px;
       line-height: 1.4;
-      cursor: text;              /* 鼠标变成文本光标，表示可编辑 */
+      cursor: text;              /* 可编辑 */
       word-break: break-word;
       white-space: pre-wrap;     /* 保留换行 */
     }
@@ -307,7 +307,7 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      cursor: pointer; /* 可以点开大备注框 */
+      cursor: pointer; /* 点开备注弹窗 */
     }
     .meta-note span {
       vertical-align: middle;
@@ -908,7 +908,7 @@
             });
 
             var noteBtn = document.createElement("button");
-            noteBtn.className = "icon-btn icon-note" + (task.note ? "has-note" : "");
+            noteBtn.className = "icon-btn icon-note" + (task.note ? " has-note" : "");
             noteBtn.textContent = "注";
             noteBtn.title = task.note ? "查看 / 修改备注" : "添加备注";
             noteBtn.addEventListener("click", function (e) {
@@ -1035,7 +1035,11 @@
 
               var logTime = document.createElement("div");
               logTime.className = "log-time";
-              logTime.textContent = "划线时间：" + formatTime(ct.completedAt);
+              var timeStr = "划线时间：" + formatTime(ct.completedAt);
+              if (ct.note && ct.note.trim()) {
+                timeStr += " · 📝 备注";
+              }
+              logTime.textContent = timeStr;
 
               logLi.appendChild(logMain);
               logLi.appendChild(logTime);
@@ -1229,6 +1233,16 @@
         } catch (e) {}
         updateLogDisplay();
       });
+
+      function updateLogDisplay() {
+        if (logCollapsed) {
+          completedLogEl.style.display = "none";
+          toggleLogBtn.textContent = "▸ 展开";
+        } else {
+          completedLogEl.style.display = "";
+          toggleLogBtn.textContent = "▾ 折叠";
+        }
+      }
 
       // ===== 9. 表单 & 初始化 =====
       formEl.addEventListener("submit", function (e) {
