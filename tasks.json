@@ -46,15 +46,6 @@
       "completedAt": 1772547170041
     },
     {
-      "id": "1768398390047e1f2700a344ae",
-      "text": "新疆-详细攻略",
-      "completed": false,
-      "createdAt": 1772547170041,
-      "updatedAt": 1772553242381,
-      "note": "",
-      "completedAt": null
-    },
-    {
       "id": "1772154740278bf8dbd23cc23a",
       "text": "3月6号之后（云淡风清） 重点关注布局民生:养老育儿消费大一统市场新质生产力:航空机器人芯片创新药核聚变等科技相关；求稳的也可以央国企改革 业绩预期:未来业绩高增长板块，比如电气，算力相关其他板块大部分都是大周期和未来战略板块(军工有色养殖人名币国际化等",
       "completed": false,
@@ -78,6 +69,15 @@
       "completed": false,
       "createdAt": 1772547170041,
       "updatedAt": 1772547170041,
+      "note": "",
+      "completedAt": null
+    },
+    {
+      "id": "1768398390047e1f2700a344ae",
+      "text": "新疆-详细攻略",
+      "completed": false,
+      "createdAt": 1772547170041,
+      "updatedAt": 1772553242381,
       "note": "",
       "completedAt": null
     }
