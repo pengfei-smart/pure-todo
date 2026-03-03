@@ -95,11 +95,8 @@
       overflow-y: auto;
     }
     .item {
-      display: flex;
-      align-items: center;
       padding: 6px 4px 6px 0;
       border-radius: 10px;
-      gap: 8px;
       transition: background 0.12s ease-out, transform 0.08s ease-out;
     }
     .item + .item {
@@ -119,6 +116,13 @@
       .item.dragging {
         background: rgba(255,255,255,0.08);
       }
+    }
+
+    /* 主行：勾选 + 文本 + 按钮 */
+    .item-main {
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
     .checkbox {
       width: 20px;
@@ -157,31 +161,43 @@
       flex: 1;
       font-size: 15px;
       line-height: 1.4;
-      cursor: text;
+      cursor: pointer; /* 点击修改 */
       word-break: break-word;
     }
     .item.completed .text {
       color: var(--completed);
       text-decoration: line-through;
     }
-    .handle {
-      width: 18px;
-      height: 26px;
+
+    .item-actions {
       display: inline-flex;
       align-items: center;
-      justify-content: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .icon-btn {
+      border: none;
+      background: transparent;
       color: var(--fg-muted);
-      cursor: grab;
-      touch-action: none;
-      user-select: none;
-      -webkit-user-select: none;
-      font-size: 16px;
-      padding-right: 2px;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 999px;
+      font-size: 12px;
+      line-height: 1;
     }
-    .handle::before {
-      content: "⋮⋮";
-      letter-spacing: -1px;
+    .icon-btn:hover {
+      background: rgba(0,0,0,0.04);
     }
+    @media (prefers-color-scheme: dark) {
+      .icon-btn:hover {
+        background: rgba(255,255,255,0.08);
+      }
+    }
+    .icon-note.has-note {
+      color: var(--accent);
+    }
+
     .delete-btn {
       border: none;
       background: transparent;
@@ -202,6 +218,53 @@
         background: rgba(255, 69, 58, 0.16);
       }
     }
+
+    .handle {
+      width: 18px;
+      height: 26px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--fg-muted);
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      font-size: 16px;
+      padding-right: 2px;
+    }
+    .handle::before {
+      content: "⋮⋮";
+      letter-spacing: -1px;
+    }
+
+    /* 下方：时间 + 备注缩略 */
+    .item-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 2px;
+      padding-left: 28px; /* 给勾选框留空 */
+      font-size: 11px;
+      color: var(--fg-muted);
+    }
+    .meta-time {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 70%;
+    }
+    .meta-note {
+      text-align: right;
+      max-width: 30%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .meta-note span {
+      vertical-align: middle;
+    }
+
     .empty {
       padding: 6px 4px 10px;
       color: var(--fg-muted);
@@ -263,6 +326,14 @@
         align-items: stretch;
       }
       .btn { width: 100%; }
+      .item-meta {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+      }
+      .meta-time, .meta-note {
+        max-width: 100%;
+      }
     }
   </style>
 </head>
@@ -272,7 +343,7 @@
       <header class="header">
         <div>
           <div class="title">Pure To Do</div>
-          <div class="subtitle">只记录要做的事 · 无时间 · 拖拽排序 · 可删除</div>
+          <div class="subtitle">只记录要做的事 · 可修改复制 · 有时间和备注</div>
         </div>
       </header>
 
@@ -297,26 +368,27 @@
     </section>
 
     <div class="meta">
-      <span>云端同步（Bmob） · 纯文本任务 · 拖拽排序 · 删除</span>
+      <span>GitHub 云端同步 · 修改 / 复制 / 时间 / 备注 · 纯前端</span>
     </div>
   </main>
 
-   <script>
+  <script>
     (function () {
-      // ========= 1. GitHub 仓库配置（不用写 token） =========
-      var GH_OWNER = "pengfei-smart";       // 你的 GitHub 用户名
-      var GH_REPO  = "pure-todo";           // 仓库名
-      var GH_PATH  = "tasks.json";          // 用来存任务列表的文件名
+      // ===== 1. GitHub 仓库配置（已经写成你的仓库） =====
+      var GH_OWNER = "pengfei-smart";
+      var GH_REPO  = "pure-todo";
+      var GH_PATH  = "tasks.json";
 
-      // token 只存在本机 localStorage，不写进代码
+      // Token 只保存在本机 localStorage，不写进仓库
       var TOKEN_STORAGE_KEY = "pure_todo_github_token";
       var GITHUB_TOKEN = "";
 
-      var LOCAL_BACKUP_KEY = "pure_todo_github_backup_v1";
+      var LOCAL_BACKUP_KEY = "pure_todo_github_backup_v2";
 
-      // ========= 2. 状态 & DOM =========
-      var tasks = [];  // {id, text, completed}
-      var currentSha = null; // GitHub 上 tasks.json 的 sha，用于更新
+      // 任务结构：
+      // { id, text, completed, createdAt, updatedAt, note }
+      var tasks = [];
+      var currentSha = null; // GitHub 上 tasks.json 的 sha
 
       var listEl  = document.getElementById("todo-list");
       var emptyEl = document.getElementById("empty-state");
@@ -324,7 +396,46 @@
       var inputEl = document.getElementById("new-task-input");
       var statsEl = document.getElementById("task-stats");
 
-      // ========= 3. 工具：本地备份 =========
+      // ===== 2. 补全老数据的字段 =====
+      function normalizeTasks() {
+        var now = Date.now();
+        for (var i = 0; i < tasks.length; i++) {
+          var t = tasks[i];
+          if (!t) continue;
+          if (!t.id) {
+            t.id = now.toString() + Math.random().toString(16).slice(2);
+          }
+          if (typeof t.completed !== "boolean") {
+            t.completed = !!t.completed;
+          }
+          if (typeof t.createdAt !== "number") {
+            t.createdAt = now;
+          }
+          if (typeof t.updatedAt !== "number") {
+            t.updatedAt = t.createdAt;
+          }
+          if (typeof t.note !== "string") {
+            t.note = "";
+          }
+        }
+      }
+
+      function pad2(n) {
+        return n < 10 ? "0" + n : "" + n;
+      }
+
+      function formatTime(ts) {
+        if (!ts) return "";
+        var d = new Date(ts);
+        var y = d.getFullYear();
+        var m = pad2(d.getMonth() + 1);
+        var day = pad2(d.getDate());
+        var h = pad2(d.getHours());
+        var min = pad2(d.getMinutes());
+        return y + "-" + m + "-" + day + " " + h + ":" + min;
+      }
+
+      // ===== 3. 本地备份 =====
       function loadFromLocalBackup() {
         try {
           var raw = localStorage.getItem(LOCAL_BACKUP_KEY);
@@ -337,6 +448,7 @@
         } catch (e) {
           tasks = [];
         }
+        normalizeTasks();
       }
 
       function saveToLocalBackup() {
@@ -345,7 +457,7 @@
         } catch (e) {}
       }
 
-      // ========= 4. 工具：处理 GitHub Token =========
+      // ===== 4. GitHub Token / 工具函数 =====
       function ensureToken() {
         if (GITHUB_TOKEN) return true;
         try {
@@ -356,7 +468,6 @@
           }
         } catch (e) {}
 
-        // 第一次没有 token，就弹一个输入框让你粘贴
         var t = window.prompt(
           "第一次使用云同步，请粘贴你在 GitHub 创建的 Personal Access Token：\n\n" +
           "说明：\n" +
@@ -370,7 +481,6 @@
           } catch (e) {}
           return true;
         } else {
-          // 用户没提供 token，就只用本地模式
           console.warn("未配置 GitHub Token，将只使用本地存储。");
           return false;
         }
@@ -378,7 +488,6 @@
 
       function githubHeaders() {
         if (!ensureToken()) {
-          // 没有 token 的情况，只返回 Accept 头，GitHub 会匿名限流，只能读公共内容，写会失败
           return {
             "Accept": "application/vnd.github.v3+json"
           };
@@ -391,7 +500,6 @@
       }
 
       function encodeBase64(str) {
-        // 兼容中文
         return btoa(unescape(encodeURIComponent(str)));
       }
 
@@ -399,23 +507,19 @@
         return decodeURIComponent(escape(atob(str)));
       }
 
-      // ========= 5. GitHub 读写 =========
-
-      // 从 GitHub 读取 tasks.json
+      // ===== 5. 从 GitHub 读写 tasks.json =====
       function loadFromGitHub() {
-        var url = "https://api.github.com/repos/" + GH_OWNER + "/" + GH_REPO + "/contents/" + GH_PATH;
-
         if (!ensureToken()) {
-          // 没设置 token，直接跳过云端加载
           return Promise.reject(new Error("NO_TOKEN"));
         }
+        var url = "https://api.github.com/repos/" + GH_OWNER + "/" + GH_REPO + "/contents/" + GH_PATH;
 
         return fetch(url, { headers: githubHeaders() })
           .then(function (res) {
             if (res.status === 404) {
-              // 文件不存在，当作空列表
               currentSha = null;
               tasks = [];
+              normalizeTasks();
               return null;
             }
             if (!res.ok) {
@@ -431,7 +535,11 @@
           .then(function (data) {
             if (!data) return;
             currentSha = data.sha;
-            if (!data.content) return;
+            if (!data.content) {
+              tasks = [];
+              normalizeTasks();
+              return;
+            }
             var decoded = decodeBase64(data.content);
             var parsed = JSON.parse(decoded);
             if (parsed && Array.isArray(parsed.list)) {
@@ -439,16 +547,15 @@
             } else {
               tasks = [];
             }
+            normalizeTasks();
           });
       }
 
-      // 把当前 tasks 写回 GitHub
       function saveToGitHub() {
         if (!ensureToken()) {
           console.warn("未配置 GitHub Token，只保存到本地。");
           return;
         }
-
         var url = "https://api.github.com/repos/" + GH_OWNER + "/" + GH_REPO + "/contents/" + GH_PATH;
         var text = JSON.stringify({ list: tasks }, null, 2);
         var content = encodeBase64(text);
@@ -491,13 +598,21 @@
       function saveAll() {
         saveToLocalBackup();
         if (saveTimer) clearTimeout(saveTimer);
-        // 稍微防抖一下，避免频繁写 GitHub
         saveTimer = setTimeout(function () {
           saveToGitHub();
         }, 800);
       }
 
-      // ========= 6. 渲染 =========
+      // ===== 6. 渲染 =====
+      function escapeHtml(str) {
+        return String(str)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
       function render() {
         listEl.innerHTML = "";
         if (tasks.length === 0) {
@@ -514,6 +629,9 @@
             li.draggable = true;
             li.dataset.id = task.id;
 
+            var mainRow = document.createElement("div");
+            mainRow.className = "item-main";
+
             var checkbox = document.createElement("div");
             checkbox.className = "checkbox";
             checkbox.innerHTML = '<div class="checkbox-inner"></div>';
@@ -524,6 +642,33 @@
             var text = document.createElement("div");
             text.className = "text";
             text.textContent = task.text;
+            text.title = "点击修改内容";
+            text.addEventListener("click", function () {
+              editTaskText(task.id);
+            });
+
+            var actions = document.createElement("div");
+            actions.className = "item-actions";
+
+            // 复制按钮
+            var copyBtn = document.createElement("button");
+            copyBtn.className = "icon-btn";
+            copyBtn.textContent = "复制";
+            copyBtn.title = "复制内容到剪贴板";
+            copyBtn.addEventListener("click", function (e) {
+              e.stopPropagation();
+              copyTask(task);
+            });
+
+            // 备注按钮
+            var noteBtn = document.createElement("button");
+            noteBtn.className = "icon-btn icon-note" + (task.note ? " has-note" : "");
+            noteBtn.textContent = "注";
+            noteBtn.title = task.note ? "查看 / 修改备注" : "添加备注";
+            noteBtn.addEventListener("click", function (e) {
+              e.stopPropagation();
+              editTaskNote(task.id);
+            });
 
             var handle = document.createElement("div");
             handle.className = "handle";
@@ -538,11 +683,48 @@
               if (ok) deleteTask(task.id);
             });
 
-            li.appendChild(checkbox);
-            li.appendChild(text);
-            li.appendChild(handle);
-            li.appendChild(del);
+            actions.appendChild(copyBtn);
+            actions.appendChild(noteBtn);
+            actions.appendChild(handle);
+            actions.appendChild(del);
 
+            mainRow.appendChild(checkbox);
+            mainRow.appendChild(text);
+            mainRow.appendChild(actions);
+
+            // 元信息：时间 + 备注缩略
+            var metaRow = document.createElement("div");
+            metaRow.className = "item-meta";
+
+            var metaTime = document.createElement("div");
+            metaTime.className = "meta-time";
+            var createdStr = formatTime(task.createdAt);
+            var updatedStr = formatTime(task.updatedAt);
+            var timeText = "创建：" + createdStr;
+            if (task.updatedAt && task.updatedAt !== task.createdAt) {
+              timeText += " · 修改：" + updatedStr;
+            }
+            metaTime.textContent = timeText;
+
+            var metaNote = document.createElement("div");
+            metaNote.className = "meta-note";
+            if (task.note) {
+              var preview = task.note;
+              if (preview.length > 12) {
+                preview = preview.slice(0, 12) + "…";
+              }
+              metaNote.innerHTML = '<span>📝 ' + escapeHtml(preview) + "</span>";
+            } else {
+              metaNote.textContent = "";
+            }
+
+            metaRow.appendChild(metaTime);
+            metaRow.appendChild(metaNote);
+
+            li.appendChild(mainRow);
+            li.appendChild(metaRow);
+
+            // 拖拽排序
             li.addEventListener("dragstart", function (e) {
               e.dataTransfer.effectAllowed = "move";
               e.dataTransfer.setData("text/plain", task.id);
@@ -573,37 +755,109 @@
         statsEl.textContent = "共 " + total + " 条 · 未完成 " + (total - done) + " 条";
       }
 
-      // ========= 7. 操作 =========
+      // ===== 7. 任务操作 =====
       function add(text) {
         var t = text.trim();
         if (!t) return;
+        var now = Date.now();
         tasks.unshift({
-          id: Date.now().toString() + Math.random().toString(16).slice(2),
+          id: now.toString() + Math.random().toString(16).slice(2),
           text: t,
-          completed: false
+          completed: false,
+          createdAt: now,
+          updatedAt: now,
+          note: ""
         });
         saveAll();
         render();
       }
 
-      function toggle(id) {
+      function findTaskIndex(id) {
         for (var i = 0; i < tasks.length; i++) {
-          if (tasks[i].id === id) {
-            tasks[i].completed = !tasks[i].completed;
-            break;
-          }
+          if (tasks[i].id === id) return i;
         }
+        return -1;
+      }
+
+      function toggle(id) {
+        var i = findTaskIndex(id);
+        if (i === -1) return;
+        tasks[i].completed = !tasks[i].completed;
+        tasks[i].updatedAt = Date.now();
         saveAll();
         render();
       }
 
-      function reorder(fromId, toId) {
-        var fromIndex = -1, toIndex = -1;
-        for (var i = 0; i < tasks.length; i++) {
-          if (tasks[i].id === fromId) fromIndex = i;
-          if (tasks[i].id === toId)  toIndex  = i;
+      function editTaskText(id) {
+        var i = findTaskIndex(id);
+        if (i === -1) return;
+        var current = tasks[i].text || "";
+        var next = window.prompt("修改任务内容：", current);
+        if (next === null) return;
+        next = next.trim();
+        if (!next) return;
+        if (next === current) return;
+        tasks[i].text = next;
+        tasks[i].updatedAt = Date.now();
+        saveAll();
+        render();
+      }
+
+      function editTaskNote(id) {
+        var i = findTaskIndex(id);
+        if (i === -1) return;
+        var current = tasks[i].note || "";
+        var title = current ? "查看 / 修改备注：" : "添加备注：";
+        var next = window.prompt(title, current);
+        if (next === null) return;
+        next = next.trim();
+        tasks[i].note = next;
+        tasks[i].updatedAt = Date.now();
+        saveAll();
+        render();
+      }
+
+      function copyTask(task) {
+        var content = task.text || "";
+        if (task.note) {
+          content += "\n\n备注：" + task.note;
         }
+
+        function fallbackCopy() {
+          var ta = document.createElement("textarea");
+          ta.value = content;
+          ta.style.position = "fixed";
+          ta.style.opacity = "0";
+          document.body.appendChild(ta);
+          ta.focus();
+          ta.select();
+          try {
+            document.execCommand("copy");
+            alert("已复制到剪贴板。");
+          } catch (e) {
+            alert("复制失败，可以手动选中内容复制。\n\n" + content);
+          }
+          document.body.removeChild(ta);
+        }
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(content)
+            .then(function () {
+              alert("已复制到剪贴板。");
+            })
+            .catch(function () {
+              fallbackCopy();
+            });
+        } else {
+          fallbackCopy();
+        }
+      }
+
+      function reorder(fromId, toId) {
+        var fromIndex = findTaskIndex(fromId);
+        var toIndex = findTaskIndex(toId);
         if (fromIndex === -1 || toIndex === -1) return;
+        if (fromIndex === toIndex) return;
         var moved = tasks.splice(fromIndex, 1)[0];
         tasks.splice(toIndex, 0, moved);
         saveAll();
@@ -611,20 +865,14 @@
       }
 
       function deleteTask(id) {
-        var index = -1;
-        for (var i = 0; i < tasks.length; i++) {
-          if (tasks[i].id === id) {
-            index = i;
-            break;
-          }
-        }
-        if (index === -1) return;
-        tasks.splice(index, 1);
+        var i = findTaskIndex(id);
+        if (i === -1) return;
+        tasks.splice(i, 1);
         saveAll();
         render();
       }
 
-      // ========= 8. 事件 & 初始化 =========
+      // ===== 8. 事件 & 初始化 =====
       formEl.addEventListener("submit", function (e) {
         e.preventDefault();
         add(inputEl.value);
@@ -635,12 +883,10 @@
       (function init() {
         loadFromGitHub()
           .then(function () {
-            // 成功从云端加载后，同步一份到本地备份
             saveToLocalBackup();
           })
           .catch(function (e) {
             if (e && e.message === "NO_TOKEN") {
-              // 用户没填 token，直接用本地备份
               loadFromLocalBackup();
             } else {
               console.warn("从 GitHub 加载失败，使用本地备份：", e);
@@ -656,4 +902,3 @@
   </script>
 </body>
 </html>
-
