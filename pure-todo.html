@@ -409,6 +409,8 @@
       font-size: 11px;
       color: var(--fg-muted);
       margin-top: 2px;
+      white-space: pre-wrap;     /* 备注里有换行也可以显示 */
+      word-break: break-word;    /* 备注太长自动换行 */
     }
 
     /* 备注大弹窗 */
@@ -1037,7 +1039,8 @@
               logTime.className = "log-time";
               var timeStr = "划线时间：" + formatTime(ct.completedAt);
               if (ct.note && ct.note.trim()) {
-                timeStr += " · 📝 备注";
+                // 显示完整备注内容，放在【】里，可以自动换行
+                timeStr += " · 📝【" + ct.note.trim() + "】";
               }
               logTime.textContent = timeStr;
 
