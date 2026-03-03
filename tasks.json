@@ -5,8 +5,9 @@
       "text": "明天（3.3）还有一波，甚至后天，这周都喋喋不休，这么大的跌幅，不容易拉起来让大家解套了。 等伊朗什么时候收手，才敢拉。否则通胀预期+能源避险，一直打压所有市场，什么科技金属有色稀土AI电网设备，通胀之下，企业利润都要降低。 美元指数直接暴力拉升，什么黄金之类的，能源危机的时候黄金也不行。石油+美元，才是你哥",
       "completed": false,
       "createdAt": 1772547170041,
-      "updatedAt": 1772548967854,
-      "note": "啊啊啊\n是啊\n啊"
+      "updatedAt": 1772550235526,
+      "note": "",
+      "completedAt": null
     },
     {
       "id": "1772372176978d878a366ceae58",
@@ -14,7 +15,8 @@
       "completed": true,
       "createdAt": 1772547170041,
       "updatedAt": 1772547170041,
-      "note": ""
+      "note": "",
+      "completedAt": 1772547170041
     },
     {
       "id": "1772298066288b7fbad11d397f",
@@ -22,7 +24,8 @@
       "completed": true,
       "createdAt": 1772547170041,
       "updatedAt": 1772547170041,
-      "note": ""
+      "note": "",
+      "completedAt": 1772547170041
     },
     {
       "id": "1772154740278bf8dbd23cc23a",
@@ -30,7 +33,8 @@
       "completed": false,
       "createdAt": 1772547170041,
       "updatedAt": 1772547170041,
-      "note": ""
+      "note": "",
+      "completedAt": null
     },
     {
       "id": "177207413030454cb4a705609a",
@@ -38,7 +42,8 @@
       "completed": true,
       "createdAt": 1772547170041,
       "updatedAt": 1772547170041,
-      "note": ""
+      "note": "",
+      "completedAt": 1772547170041
     },
     {
       "id": "1770994709427f89268d9dc97b",
@@ -46,7 +51,8 @@
       "completed": false,
       "createdAt": 1772547170041,
       "updatedAt": 1772547170041,
-      "note": ""
+      "note": "",
+      "completedAt": null
     },
     {
       "id": "17709924939262294b1082b2a2",
@@ -54,7 +60,8 @@
       "completed": false,
       "createdAt": 1772547170041,
       "updatedAt": 1772547170041,
-      "note": ""
+      "note": "",
+      "completedAt": null
     },
     {
       "id": "1770992383685b8d536eadf22e",
@@ -62,7 +69,8 @@
       "completed": false,
       "createdAt": 1772547170041,
       "updatedAt": 1772547170041,
-      "note": ""
+      "note": "",
+      "completedAt": null
     },
     {
       "id": "1768398390047e1f2700a344ae",
@@ -70,7 +78,8 @@
       "completed": false,
       "createdAt": 1772547170041,
       "updatedAt": 1772547170041,
-      "note": ""
+      "note": "",
+      "completedAt": null
     }
   ]
 }
