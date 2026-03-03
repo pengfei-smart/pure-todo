@@ -268,6 +268,7 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      cursor: pointer; /* 可以点开大备注框 */
     }
     .meta-note span {
       vertical-align: middle;
@@ -343,6 +344,84 @@
         max-width: 100%;
       }
     }
+
+    /* 备注大弹窗 */
+    .note-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .note-modal {
+      width: 90%;
+      max-width: 520px;
+      max-height: 80vh;
+      background: var(--card-bg);
+      color: var(--fg);
+      border-radius: 14px;
+      box-shadow:
+        0 18px 45px rgba(0, 0, 0, 0.35),
+        0 0 0 1px rgba(255, 255, 255, 0.12);
+      padding: 14px 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .note-modal-header {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .note-modal-time {
+      font-size: 11px;
+      color: var(--fg-muted);
+    }
+    .note-modal-textarea {
+      width: 100%;
+      min-height: 120px;
+      max-height: 50vh;
+      resize: vertical;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 8px 10px;
+      font-size: 14px;
+      line-height: 1.5;
+      outline: none;
+      background: rgba(255, 255, 255, 0.96);
+      color: var(--fg);
+      box-sizing: border-box;
+    }
+    @media (prefers-color-scheme: dark) {
+      .note-modal-textarea {
+        background: rgba(0, 0, 0, 0.55);
+      }
+    }
+    .note-modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .btn-secondary {
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--fg-muted);
+      font-size: 13px;
+      padding: 6px 12px;
+      cursor: pointer;
+    }
+    .btn-primary {
+      border-radius: 999px;
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      font-size: 13px;
+      padding: 6px 14px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -376,9 +455,26 @@
     </section>
 
     <div class="meta">
-      <span>GitHub 云端同步 · 本地备份 · 原地多行编辑 · 创建 / 修改时间 · 备注缩略</span>
+      <span>GitHub 云端同步 · 本地备份 · 原地多行编辑 · 创建 / 修改时间 · 备注弹窗</span>
     </div>
   </main>
+
+  <!-- 备注大弹窗 -->
+  <div id="note-modal-backdrop" class="note-modal-backdrop" style="display:none;">
+    <div class="note-modal" id="note-modal">
+      <div class="note-modal-header">备注</div>
+      <div class="note-modal-time" id="note-modal-time"></div>
+      <textarea
+        id="note-modal-textarea"
+        class="note-modal-textarea"
+        placeholder="在这里编写或修改这条任务的备注（可多行）…"
+      ></textarea>
+      <div class="note-modal-footer">
+        <button type="button" class="btn-secondary" id="note-modal-cancel">取消</button>
+        <button type="button" class="btn-primary" id="note-modal-save">保存</button>
+      </div>
+    </div>
+  </div>
 
   <script>
     (function () {
@@ -403,6 +499,14 @@
       var formEl  = document.getElementById("add-form");
       var inputEl = document.getElementById("new-task-input");
       var statsEl = document.getElementById("task-stats");
+
+      // 备注弹窗相关
+      var noteModalBackdrop = document.getElementById("note-modal-backdrop");
+      var noteModalTextarea = document.getElementById("note-modal-textarea");
+      var noteModalTime     = document.getElementById("note-modal-time");
+      var noteModalSaveBtn  = document.getElementById("note-modal-save");
+      var noteModalCancelBtn = document.getElementById("note-modal-cancel");
+      var currentNoteTaskId = null;
 
       // ===== 2. 补全老数据的字段 =====
       function normalizeTasks() {
@@ -708,7 +812,7 @@
             noteBtn.title = task.note ? "查看 / 修改备注" : "添加备注";
             noteBtn.addEventListener("click", function (e) {
               e.stopPropagation();
-              editTaskNote(task.id);
+              openNoteModal(task.id);
             });
 
             var handle = document.createElement("div");
@@ -758,6 +862,12 @@
             } else {
               metaNote.textContent = "";
             }
+
+            // 点击备注缩略也可以打开大备注框
+            metaNote.addEventListener("click", function (e) {
+              e.stopPropagation();
+              openNoteModal(task.id);
+            });
 
             metaRow.appendChild(metaTime);
             metaRow.appendChild(metaNote);
@@ -829,18 +939,44 @@
         render();
       }
 
-      function editTaskNote(id) {
+      // 打开备注弹窗
+      function openNoteModal(id) {
         var i = findTaskIndex(id);
         if (i === -1) return;
-        var current = tasks[i].note || "";
-        var title = current ? "查看 / 修改备注：" : "添加备注：";
-        var next = window.prompt(title, current);
-        if (next === null) return;
-        next = next.trim();
-        tasks[i].note = next;
-        tasks[i].updatedAt = Date.now();
-        saveAll();
-        render();
+        var task = tasks[i];
+        currentNoteTaskId = id;
+
+        noteModalTextarea.value = task.note || "";
+
+        var createdStr = formatTime(task.createdAt);
+        var updatedStr = formatTime(task.updatedAt);
+        var timeText = "创建时间：" + createdStr;
+        if (task.updatedAt && task.updatedAt !== task.createdAt) {
+          timeText += " · 最后修改：" + updatedStr;
+        }
+        noteModalTime.textContent = timeText;
+
+        noteModalBackdrop.style.display = "flex";
+        noteModalTextarea.focus();
+        // 光标移到备注末尾
+        noteModalTextarea.selectionStart = noteModalTextarea.selectionEnd = noteModalTextarea.value.length;
+      }
+
+      function closeNoteModal(save) {
+        if (!currentNoteTaskId) {
+          noteModalBackdrop.style.display = "none";
+          return;
+        }
+        var i = findTaskIndex(currentNoteTaskId);
+        if (i !== -1 && save) {
+          var next = noteModalTextarea.value;
+          tasks[i].note = next.trim();
+          tasks[i].updatedAt = Date.now();
+          saveAll();
+          render();
+        }
+        currentNoteTaskId = null;
+        noteModalBackdrop.style.display = "none";
       }
 
       function copyTask(task) {
@@ -898,7 +1034,27 @@
         render();
       }
 
-      // ===== 8. 事件 & 初始化 =====
+      // ===== 8. 备注弹窗事件 =====
+      noteModalSaveBtn.addEventListener("click", function () {
+        closeNoteModal(true);
+      });
+      noteModalCancelBtn.addEventListener("click", function () {
+        closeNoteModal(false);
+      });
+      noteModalBackdrop.addEventListener("click", function (e) {
+        if (e.target === noteModalBackdrop) {
+          // 点击遮罩层空白处相当于取消
+          closeNoteModal(false);
+        }
+      });
+      window.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && noteModalBackdrop.style.display === "flex") {
+          e.preventDefault();
+          closeNoteModal(false);
+        }
+      });
+
+      // ===== 9. 表单 & 初始化 =====
       formEl.addEventListener("submit", function (e) {
         e.preventDefault();
         add(inputEl.value);
