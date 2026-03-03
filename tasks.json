@@ -75,11 +75,11 @@
     {
       "id": "1768398390047e1f2700a344ae",
       "text": "新疆-详细攻略",
-      "completed": false,
+      "completed": true,
       "createdAt": 1772547170041,
-      "updatedAt": 1772552092751,
+      "updatedAt": 1772552591100,
       "note": "阿阿阿",
-      "completedAt": null
+      "completedAt": 1772552591100
     }
   ]
 }
