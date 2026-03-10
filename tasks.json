@@ -1,6 +1,15 @@
 {
   "list": [
     {
+      "id": "1773105826147ae02eab21f1dc",
+      "text": "3.10【国电南瑞和剑桥科技】",
+      "completed": false,
+      "createdAt": 1773105826147,
+      "updatedAt": 1773105826147,
+      "note": "",
+      "completedAt": null
+    },
+    {
       "id": "1772583007535e9c39267a5b9e",
       "text": "每天早上一定要回顾AI给的信息，不要只盯着局部",
       "completed": false,
