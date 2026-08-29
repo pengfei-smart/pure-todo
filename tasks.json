@@ -1,6 +1,24 @@
 {
   "list": [
     {
+      "id": "1787974440246d595e29b29532",
+      "text": "4.确定好衣服。第一天穿什么，第二天穿什么。（迎迎 我一套 我妈）",
+      "completed": false,
+      "createdAt": 1787974440246,
+      "updatedAt": 1787974440246,
+      "note": "",
+      "completedAt": null
+    },
+    {
+      "id": "1787974417416d248ba3a388c",
+      "text": "3.人数确定好 安徽（）+贵州（）",
+      "completed": false,
+      "createdAt": 1787974417416,
+      "updatedAt": 1787974417416,
+      "note": "",
+      "completedAt": null
+    },
+    {
       "id": "17879743124564a49bd07fd755",
       "text": "2. 确定好农村坝坝宴 确定多少钱做一桌，菜单具体。",
       "completed": false,
