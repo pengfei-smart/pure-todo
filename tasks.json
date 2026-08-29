@@ -1,6 +1,15 @@
 {
   "list": [
     {
+      "id": "1787974502372af8a152d16b43",
+      "text": "8.住宿问题确定好",
+      "completed": false,
+      "createdAt": 1787974502372,
+      "updatedAt": 1787974502372,
+      "note": "",
+      "completedAt": null
+    },
+    {
       "id": "17879744886540dce047380bf6",
       "text": "7.买空红包，到时哥的帮忙费，二叔的帮忙费",
       "completed": false,
